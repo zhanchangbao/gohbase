@@ -7,6 +7,7 @@ package observability
 
 import (
 	"context"
+	"github.com/zhanchangbao/gohbase/bk"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zhanchangbao/gohbase/pb"
@@ -65,7 +66,7 @@ func (r RequestTracePropagator) Set(key string, value string) {
 		return
 	}
 	if r.RequestHeader.TraceInfo == nil {
-		r.RequestHeader.TraceInfo = &pb.RPCTInfo{
+		r.RequestHeader.TraceInfo = &bk.RPCTInfo{
 			Headers: make(map[string]string),
 		}
 	}

@@ -24,6 +24,7 @@
 package pb
 
 import (
+	"github.com/zhanchangbao/gohbase/bk"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -458,9 +459,9 @@ type RequestHeader struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Monotonically increasing call_id to keep track of RPC requests and their response
-	CallId     *uint32   `protobuf:"varint,1,opt,name=call_id,json=callId" json:"call_id,omitempty"`
-	TraceInfo  *RPCTInfo `protobuf:"bytes,2,opt,name=trace_info,json=traceInfo" json:"trace_info,omitempty"`
-	MethodName *string   `protobuf:"bytes,3,opt,name=method_name,json=methodName" json:"method_name,omitempty"`
+	CallId     *uint32      `protobuf:"varint,1,opt,name=call_id,json=callId" json:"call_id,omitempty"`
+	TraceInfo  *bk.RPCTInfo `protobuf:"bytes,2,opt,name=trace_info,json=traceInfo" json:"trace_info,omitempty"`
+	MethodName *string      `protobuf:"bytes,3,opt,name=method_name,json=methodName" json:"method_name,omitempty"`
 	// If true, then a pb Message param follows.
 	RequestParam *bool `protobuf:"varint,4,opt,name=request_param,json=requestParam" json:"request_param,omitempty"`
 	// If present, then an encoded data block follows.
@@ -510,7 +511,7 @@ func (x *RequestHeader) GetCallId() uint32 {
 	return 0
 }
 
-func (x *RequestHeader) GetTraceInfo() *RPCTInfo {
+func (x *RequestHeader) GetTraceInfo() *bk.RPCTInfo {
 	if x != nil {
 		return x.TraceInfo
 	}
@@ -739,7 +740,7 @@ var file_RPC_proto_goTypes = []interface{}{
 	(*RequestHeader)(nil),            // 6: hbase.pb.RequestHeader
 	(*ResponseHeader)(nil),           // 7: hbase.pb.ResponseHeader
 	(*VersionInfo)(nil),              // 8: hbase.pb.VersionInfo
-	(*RPCTInfo)(nil),                 // 9: hbase.pb.RPCTInfo
+	(*bk.RPCTInfo)(nil),              // 9: hbase.pb.RPCTInfo
 }
 var file_RPC_proto_depIdxs = []int32{
 	0, // 0: hbase.pb.ConnectionHeader.user_info:type_name -> hbase.pb.UserInformation
@@ -761,7 +762,7 @@ func file_RPC_proto_init() {
 	if File_RPC_proto != nil {
 		return
 	}
-	file_Tracing_proto_init()
+	bk.file_Tracing_proto_init()
 	file_HBase_proto_init()
 	if !protoimpl.UnsafeEnabled {
 		file_RPC_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
