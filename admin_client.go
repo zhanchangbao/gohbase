@@ -40,6 +40,7 @@ type AdminClient interface {
 	SetBalancer(sb *hrpc.SetBalancer) (bool, error)
 	// MoveRegion moves a region to a different RegionServer
 	MoveRegion(mr *hrpc.MoveRegion) error
+	Lock() ([]*pb.LockedResource, error)
 	//GetProcedures() ([]*pb.Procedure, error)
 }
 
@@ -70,6 +71,21 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 	}
 	c.zkClient = zk.NewClient(zkquorum, c.zkTimeout)
 	return c
+}
+
+// Lock Get the status of the cluster
+func (c *client) Lock() ([]*pb.LockedResource, error) {
+	pbmsg, err := c.SendRPC(hrpc.NewLock())
+	if err != nil {
+		return nil, err
+	}
+
+	r, ok := pbmsg.(*pb.GetLocksResponse)
+	if !ok {
+		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
+	}
+
+	return r.GetLock(), nil
 }
 
 // ClusterStatus Get the status of the cluster
