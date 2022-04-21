@@ -12,11 +12,11 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/tsuna/gohbase/compression"
-	"github.com/tsuna/gohbase/hrpc"
-	"github.com/tsuna/gohbase/pb"
-	"github.com/tsuna/gohbase/region"
-	"github.com/tsuna/gohbase/zk"
+	"github.com/zhanchangbao/gohbase/compression"
+	"github.com/zhanchangbao/gohbase/hrpc"
+	"github.com/zhanchangbao/gohbase/pb"
+	"github.com/zhanchangbao/gohbase/region"
+	"github.com/zhanchangbao/gohbase/zk"
 	"google.golang.org/protobuf/proto"
 	"modernc.org/b"
 )

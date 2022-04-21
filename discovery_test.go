@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/tsuna/gohbase/hrpc"
-	"github.com/tsuna/gohbase/region"
+	"github.com/zhanchangbao/gohbase/hrpc"
+	"github.com/zhanchangbao/gohbase/region"
 )
 
 func TestRegionDiscovery(t *testing.T) {

@@ -12,10 +12,10 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/tsuna/gohbase/hrpc"
-	"github.com/tsuna/gohbase/pb"
-	"github.com/tsuna/gohbase/region"
-	"github.com/tsuna/gohbase/zk"
+	"github.com/zhanchangbao/gohbase/hrpc"
+	"github.com/zhanchangbao/gohbase/pb"
+	"github.com/zhanchangbao/gohbase/region"
+	"github.com/zhanchangbao/gohbase/zk"
 )
 
 const (
@@ -40,6 +40,7 @@ type AdminClient interface {
 	SetBalancer(sb *hrpc.SetBalancer) (bool, error)
 	// MoveRegion moves a region to a different RegionServer
 	MoveRegion(mr *hrpc.MoveRegion) error
+	GetProcedures() ([]*pb.Procedure, error)
 }
 
 // NewAdminClient creates an admin HBase client.
@@ -84,6 +85,21 @@ func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
 	}
 
 	return r.GetClusterStatus(), nil
+}
+
+//GetProcedures Get the procedure of the cluster
+func (c *client) GetProcedures() ([]*pb.Procedure, error) {
+	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
+	pbmsg, err := c.SendRPC(hrpc.NewGetProcedures())
+	if err != nil {
+		return nil, err
+	}
+	r, ok := pbmsg.(*pb.GetProceduresResponse)
+	if !ok {
+		return nil, fmt.Errorf("sendRPC returned not a GetProceduresResponse")
+	}
+
+	return r.GetProcedure(), nil
 }
 
 func (c *client) CreateTable(t *hrpc.CreateTable) error {

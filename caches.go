@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/tsuna/gohbase/hrpc"
+	"github.com/zhanchangbao/gohbase/hrpc"
 	"modernc.org/b"
 )
 

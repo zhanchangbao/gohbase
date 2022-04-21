@@ -23,9 +23,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
-	"github.com/tsuna/gohbase/hrpc"
-	"github.com/tsuna/gohbase/internal/observability"
-	"github.com/tsuna/gohbase/pb"
+	"github.com/zhanchangbao/gohbase/hrpc"
+	"github.com/zhanchangbao/gohbase/internal/observability"
+	"github.com/zhanchangbao/gohbase/pb"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
