@@ -40,8 +40,8 @@ type AdminClient interface {
 	SetBalancer(sb *hrpc.SetBalancer) (bool, error)
 	// MoveRegion moves a region to a different RegionServer
 	MoveRegion(mr *hrpc.MoveRegion) error
-	Lock() ([]*pb.LockedResource, error)
-	//GetProcedures() ([]*pb.Procedure, error)
+	GetLocks() ([]*pb.LockedResource, error)
+	GetProcedures() ([]*pb.Procedure, error)
 }
 
 // NewAdminClient creates an admin HBase client.
@@ -73,8 +73,8 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 	return c
 }
 
-// Lock Get the status of the cluster
-func (c *client) Lock() ([]*pb.LockedResource, error) {
+// GetLocks Get the locks of the cluster
+func (c *client) GetLocks() ([]*pb.LockedResource, error) {
 	pbmsg, err := c.SendRPC(hrpc.NewLock())
 	if err != nil {
 		return nil, err
@@ -103,19 +103,20 @@ func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
 	return r.GetClusterStatus(), nil
 }
 
-//GetProcedures Get the procedure of the cluster
-//func (c *client) GetProcedures() ([]*pb.Procedure, error) {
-//	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
-//	if err != nil {
-//		return nil, err
-//	}
-//	r, ok := pbmsg.(*pb.GetProceduresResponse)
-//	if !ok {
-//		return nil, fmt.Errorf("sendRPC returned not a GetProceduresResponse")
-//	}
-//
-//	return r.GetProcedure(), nil
-//}
+// GetProcedures Get the procedures of the cluster
+func (c *client) GetProcedures() ([]*pb.Procedure, error) {
+	pbmsg, err := c.SendRPC(hrpc.NewProcedures())
+	if err != nil {
+		return nil, err
+	}
+
+	r, ok := pbmsg.(*pb.GetProceduresResponse)
+	if !ok {
+		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
+	}
+
+	return r.GetProcedure(), nil
+}
 
 func (c *client) CreateTable(t *hrpc.CreateTable) error {
 	pbmsg, err := c.SendRPC(t)
