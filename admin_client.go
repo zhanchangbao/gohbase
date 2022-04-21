@@ -34,7 +34,7 @@ type AdminClient interface {
 	DeleteSnapshot(t *hrpc.Snapshot) error
 	ListSnapshots(t *hrpc.ListSnapshots) ([]*pb.SnapshotDescription, error)
 	RestoreSnapshot(t *hrpc.Snapshot) error
-	ClusterStatus() (*pb.ClusterStatus, error)
+	//ClusterStatus() (*pb.ClusterStatus, error)
 	ListTableNames(t *hrpc.ListTableNames) ([]*pb.TableName, error)
 	// SetBalancer sets balancer state and returns previous state
 	SetBalancer(sb *hrpc.SetBalancer) (bool, error)
@@ -73,24 +73,23 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 }
 
 //Get the status of the cluster
-func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
-	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
-	if err != nil {
-		return nil, err
-	}
-
-	r, ok := pbmsg.(*pb.GetClusterStatusResponse)
-	if !ok {
-		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
-	}
-
-	return r.GetClusterStatus(), nil
-}
+//func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
+//	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	r, ok := pbmsg.(*pb.GetClusterStatusResponse)
+//	if !ok {
+//		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
+//	}
+//
+//	return r.GetClusterStatus(), nil
+//}
 
 //GetProcedures Get the procedure of the cluster
 func (c *client) GetProcedures() ([]*pb.Procedure, error) {
 	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
-	pbmsg, err := c.SendRPC(hrpc.NewGetProcedures())
 	if err != nil {
 		return nil, err
 	}

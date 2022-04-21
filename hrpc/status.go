@@ -25,7 +25,7 @@ func NewClusterStatus() *ClusterStatus {
 
 // Name returns the name of the rpc function
 func (c *ClusterStatus) Name() string {
-	return "GetClusterStatus"
+	return "GetProcedures"
 }
 
 // Description returns the description of this RPC call.
@@ -35,7 +35,7 @@ func (c *ClusterStatus) Description() string {
 
 // ToProto returns the Protobuf message to be sent
 func (c *ClusterStatus) ToProto() proto.Message {
-	return &pb.GetClusterStatusRequest{}
+	return &pb.GetProceduresRequest{}
 }
 
 // NewResponse returns the empty protobuf response
