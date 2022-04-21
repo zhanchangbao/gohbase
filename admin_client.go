@@ -34,13 +34,13 @@ type AdminClient interface {
 	DeleteSnapshot(t *hrpc.Snapshot) error
 	ListSnapshots(t *hrpc.ListSnapshots) ([]*pb.SnapshotDescription, error)
 	RestoreSnapshot(t *hrpc.Snapshot) error
-	//ClusterStatus() (*pb.ClusterStatus, error)
+	ClusterStatus() (*pb.ClusterStatus, error)
 	ListTableNames(t *hrpc.ListTableNames) ([]*pb.TableName, error)
 	// SetBalancer sets balancer state and returns previous state
 	SetBalancer(sb *hrpc.SetBalancer) (bool, error)
 	// MoveRegion moves a region to a different RegionServer
 	MoveRegion(mr *hrpc.MoveRegion) error
-	GetProcedures() ([]*pb.Procedure, error)
+	//GetProcedures() ([]*pb.Procedure, error)
 }
 
 // NewAdminClient creates an admin HBase client.
@@ -72,34 +72,34 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 	return c
 }
 
-//Get the status of the cluster
-//func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
-//	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	r, ok := pbmsg.(*pb.GetClusterStatusResponse)
-//	if !ok {
-//		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
-//	}
-//
-//	return r.GetClusterStatus(), nil
-//}
-
-//GetProcedures Get the procedure of the cluster
-func (c *client) GetProcedures() ([]*pb.Procedure, error) {
+// ClusterStatus Get the status of the cluster
+func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
 	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
 	if err != nil {
 		return nil, err
 	}
-	r, ok := pbmsg.(*pb.GetProceduresResponse)
+
+	r, ok := pbmsg.(*pb.GetClusterStatusResponse)
 	if !ok {
-		return nil, fmt.Errorf("sendRPC returned not a GetProceduresResponse")
+		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
 	}
 
-	return r.GetProcedure(), nil
+	return r.GetClusterStatus(), nil
 }
+
+//GetProcedures Get the procedure of the cluster
+//func (c *client) GetProcedures() ([]*pb.Procedure, error) {
+//	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
+//	if err != nil {
+//		return nil, err
+//	}
+//	r, ok := pbmsg.(*pb.GetProceduresResponse)
+//	if !ok {
+//		return nil, fmt.Errorf("sendRPC returned not a GetProceduresResponse")
+//	}
+//
+//	return r.GetProcedure(), nil
+//}
 
 func (c *client) CreateTable(t *hrpc.CreateTable) error {
 	pbmsg, err := c.SendRPC(t)
