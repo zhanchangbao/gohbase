@@ -82,7 +82,7 @@ func (c *client) GetLocks() ([]*pb.LockedResource, error) {
 
 	r, ok := pbmsg.(*pb.GetLocksResponse)
 	if !ok {
-		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
+		return nil, fmt.Errorf("sendRPC returned not a GetLocksResponse")
 	}
 
 	return r.GetLock(), nil
@@ -112,7 +112,7 @@ func (c *client) GetProcedures() ([]*pb.Procedure, error) {
 
 	r, ok := pbmsg.(*pb.GetProceduresResponse)
 	if !ok {
-		return nil, fmt.Errorf("sendRPC returned not a ClusterStatusResponse")
+		return nil, fmt.Errorf("sendRPC returned not a GetProceduresResponse")
 	}
 
 	return r.GetProcedure(), nil
