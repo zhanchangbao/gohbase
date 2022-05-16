@@ -9,8 +9,8 @@ require (
 	github.com/golang/snappy v0.0.4
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.6.0
-	go.opentelemetry.io/otel v1.0.1
-	go.opentelemetry.io/otel/trace v1.0.1
+	go.opentelemetry.io/otel v1.7.0
+	go.opentelemetry.io/otel/trace v1.7.0
 	google.golang.org/grpc v1.45.0
 	google.golang.org/protobuf v1.27.1
 	modernc.org/b v1.0.0
