@@ -20,7 +20,7 @@ import (
 	"github.com/zhanchangbao/gohbase/internal/observability"
 	"github.com/zhanchangbao/gohbase/region"
 	"github.com/zhanchangbao/gohbase/zk"
-	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/170/codes"
 	"google.golang.org/protobuf/proto"
 )
 

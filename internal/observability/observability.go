@@ -7,11 +7,11 @@ package observability
 
 import (
 	"context"
+	otel "go.opentelemetry.io/otel/170"
+	trace "go.opentelemetry.io/otel/trace/170"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zhanchangbao/gohbase/pb"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // RequestTracePropagator is used to propagate
@@ -49,7 +49,7 @@ func ObserveWithTrace(ctx context.Context, o prometheus.Observer, v float64) {
 	o.Observe(v)
 }
 
-// Get implements the go.opentelemetry.io/otel/propagation.TextMapCarrier interface
+// Get implements the go.opentelemetry.io/otel/170/propagation.TextMapCarrier interface
 func (r RequestTracePropagator) Get(key string) string {
 	if r.RequestHeader == nil ||
 		r.RequestHeader.TraceInfo == nil ||
@@ -59,7 +59,7 @@ func (r RequestTracePropagator) Get(key string) string {
 	return r.RequestHeader.TraceInfo.Headers[key]
 }
 
-// Set implements the go.opentelemetry.io/otel/propagation.TextMapCarrier interface
+// Set implements the go.opentelemetry.io/otel/170/propagation.TextMapCarrier interface
 func (r RequestTracePropagator) Set(key string, value string) {
 	if r.RequestHeader == nil {
 		return
@@ -72,7 +72,7 @@ func (r RequestTracePropagator) Set(key string, value string) {
 	r.RequestHeader.TraceInfo.Headers[key] = value
 }
 
-// Keys implements the go.opentelemetry.io/otel/propagation.TextMapCarrier interface
+// Keys implements the go.opentelemetry.io/otel/170/propagation.TextMapCarrier interface
 func (r RequestTracePropagator) Keys() []string {
 	if r.RequestHeader == nil ||
 		r.RequestHeader.TraceInfo == nil ||
