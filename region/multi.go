@@ -14,7 +14,7 @@ import (
 	"github.com/zhanchangbao/gohbase/hrpc"
 	"github.com/zhanchangbao/gohbase/pb"
 	"go.opentelemetry.io/otel/170/attribute"
-	"go.opentelemetry.io/otel/170/trace"
+	"go.opentelemetry.io/otel/trace/170"
 	"google.golang.org/protobuf/proto"
 )
 

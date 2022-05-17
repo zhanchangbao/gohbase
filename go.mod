@@ -19,6 +19,6 @@ require (
 )
 
 replace (
-go.opentelemetry.io/otel/170 v1.7.0 => go.opentelemetry.io/otel v1.7.0
-go.opentelemetry.io/otel/trace/170 v1.7.0 => go.opentelemetry.io/otel/trace v1.7.0
+	go.opentelemetry.io/otel/170 v1.7.0 => go.opentelemetry.io/otel v1.7.0
+	go.opentelemetry.io/otel/trace/170 v1.7.0 => go.opentelemetry.io/otel/trace v1.7.0
 )
