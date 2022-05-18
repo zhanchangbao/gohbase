@@ -32,19 +32,19 @@ const (
 // Client a regular HBase client
 type Client interface {
 	Scan(s *hrpc.Scan) hrpc.Scanner
-	Get(g *hrpc.Get) (*hrpc.Result, error)
-	Put(p *hrpc.Mutate) (*hrpc.Result, error)
-	Delete(d *hrpc.Mutate) (*hrpc.Result, error)
-	Append(a *hrpc.Mutate) (*hrpc.Result, error)
-	Increment(i *hrpc.Mutate) (int64, error)
+	Get(g *hrpc.Get, mip string, mport uint32) (*hrpc.Result, error)
+	Put(p *hrpc.Mutate, mip string, mport uint32) (*hrpc.Result, error)
+	Delete(d *hrpc.Mutate, mip string, mport uint32) (*hrpc.Result, error)
+	Append(a *hrpc.Mutate, mip string, mport uint32) (*hrpc.Result, error)
+	Increment(i *hrpc.Mutate, mip string, mport uint32) (int64, error)
 	CheckAndPut(p *hrpc.Mutate, family string, qualifier string,
-		expectedValue []byte) (bool, error)
+		expectedValue []byte, mip string, mport uint32) (bool, error)
 	Close()
 }
 
 // RPCClient is core client of gohbase. It's exposed for testing.
 type RPCClient interface {
-	SendRPC(rpc hrpc.Call) (proto.Message, error)
+	SendRPC(rpc hrpc.Call, mip string, mport uint32) (proto.Message, error)
 }
 
 // Option is a function used to configure optional config items for a Client.
@@ -219,8 +219,8 @@ func (c *client) Scan(s *hrpc.Scan) hrpc.Scanner {
 	return newScanner(c, s)
 }
 
-func (c *client) Get(g *hrpc.Get) (*hrpc.Result, error) {
-	pbmsg, err := c.SendRPC(g)
+func (c *client) Get(g *hrpc.Get, mip string, mport uint32) (*hrpc.Result, error) {
+	pbmsg, err := c.SendRPC(g, mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -233,20 +233,20 @@ func (c *client) Get(g *hrpc.Get) (*hrpc.Result, error) {
 	return hrpc.ToLocalResult(r.Result), nil
 }
 
-func (c *client) Put(p *hrpc.Mutate) (*hrpc.Result, error) {
-	return c.mutate(p)
+func (c *client) Put(p *hrpc.Mutate, mip string, mport uint32) (*hrpc.Result, error) {
+	return c.mutate(p, mip, mport)
 }
 
-func (c *client) Delete(d *hrpc.Mutate) (*hrpc.Result, error) {
-	return c.mutate(d)
+func (c *client) Delete(d *hrpc.Mutate, mip string, mport uint32) (*hrpc.Result, error) {
+	return c.mutate(d, mip, mport)
 }
 
-func (c *client) Append(a *hrpc.Mutate) (*hrpc.Result, error) {
-	return c.mutate(a)
+func (c *client) Append(a *hrpc.Mutate, mip string, mport uint32) (*hrpc.Result, error) {
+	return c.mutate(a, mip, mport)
 }
 
-func (c *client) Increment(i *hrpc.Mutate) (int64, error) {
-	r, err := c.mutate(i)
+func (c *client) Increment(i *hrpc.Mutate, mip string, mport uint32) (int64, error) {
+	r, err := c.mutate(i, mip, mport)
 	if err != nil {
 		return 0, err
 	}
@@ -260,8 +260,8 @@ func (c *client) Increment(i *hrpc.Mutate) (int64, error) {
 	return int64(val), nil
 }
 
-func (c *client) mutate(m *hrpc.Mutate) (*hrpc.Result, error) {
-	pbmsg, err := c.SendRPC(m)
+func (c *client) mutate(m *hrpc.Mutate, mip string, mport uint32) (*hrpc.Result, error) {
+	pbmsg, err := c.SendRPC(m, mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -275,13 +275,13 @@ func (c *client) mutate(m *hrpc.Mutate) (*hrpc.Result, error) {
 }
 
 func (c *client) CheckAndPut(p *hrpc.Mutate, family string,
-	qualifier string, expectedValue []byte) (bool, error) {
+	qualifier string, expectedValue []byte, mip string, mport uint32) (bool, error) {
 	cas, err := hrpc.NewCheckAndPut(p, family, qualifier, expectedValue)
 	if err != nil {
 		return false, err
 	}
 
-	pbmsg, err := c.SendRPC(cas)
+	pbmsg, err := c.SendRPC(cas, mip, mport)
 	if err != nil {
 		return false, err
 	}
