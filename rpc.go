@@ -489,7 +489,7 @@ func (c *client) findRegionForEmrcc(ctx context.Context, table, key []byte, mip 
 	}
 
 	// Start a goroutine to connect to the region
-	go c.establishRegion(reg, addr)
+	go c.establishRegionForEmrcc(reg, addr, mip, mport)
 
 	// Wait for the new region to become
 	// available, and then send the RPC
@@ -654,6 +654,141 @@ func (c *client) establishRegion(reg hrpc.RegionInfo, addr string) {
 			// lookup region forever until we get it or we learn that it doesn't exist
 			reg, addr, err = c.lookupRegion(originalReg.Context(),
 				fullyQualifiedTable(originalReg), originalReg.StartKey())
+
+			if err == TableNotFound {
+				// region doesn't exist, delete it from caches
+				c.regions.del(originalReg)
+				c.clients.del(originalReg)
+				originalReg.MarkAvailable()
+
+				log.WithFields(log.Fields{
+					"region":  originalReg.String(),
+					"err":     err,
+					"backoff": backoff,
+				}).Info("region does not exist anymore")
+
+				return
+			} else if originalReg.Context().Err() != nil {
+				// region is dead
+				originalReg.MarkAvailable()
+
+				log.WithFields(log.Fields{
+					"region":  originalReg.String(),
+					"err":     err,
+					"backoff": backoff,
+				}).Info("region became dead while establishing client for it")
+
+				return
+			} else if err == ErrClientClosed {
+				// client has been closed
+				return
+			} else if err != nil {
+				log.WithFields(log.Fields{
+					"region":  originalReg.String(),
+					"err":     err,
+					"backoff": backoff,
+				}).Fatal("unknown error occured when looking up region")
+			}
+			if !bytes.Equal(reg.Name(), originalReg.Name()) {
+				// put new region and remove overlapping ones.
+				// Should remove the original region as well.
+				reg.MarkUnavailable()
+				overlaps, replaced := c.regions.put(reg)
+				if !replaced {
+					// a region that is the same or younger is already in cache
+					reg.MarkAvailable()
+					originalReg.MarkAvailable()
+					return
+				}
+				// otherwise delete the overlapped regions in cache
+				for _, r := range overlaps {
+					c.clients.del(r)
+				}
+				// let rpcs know that they can retry and either get the newly
+				// added region from cache or lookup the one they need
+				originalReg.MarkAvailable()
+			} else {
+				// same region, discard the looked up one
+				reg = originalReg
+			}
+		}
+
+		var client hrpc.RegionClient
+		if reg == c.adminRegionInfo {
+			// admin region is used for talking to master, so it only has one connection to
+			// master that we don't add to the cache
+			// TODO: consider combining this case with the regular regionserver path
+			client = c.newRegionClientFn(addr, c.clientType, c.rpcQueueSize, c.flushInterval,
+				c.effectiveUser, c.regionReadTimeout, nil)
+		} else {
+			client = c.clients.put(addr, reg, func() hrpc.RegionClient {
+				return c.newRegionClientFn(addr, c.clientType, c.rpcQueueSize, c.flushInterval,
+					c.effectiveUser, c.regionReadTimeout, c.compressionCodec)
+			})
+		}
+
+		// connect to the region's regionserver.
+		// only the first caller to Dial gets to actually connect, other concurrent calls
+		// will block until connected or an error.
+		dialCtx, cancel := context.WithTimeout(reg.Context(), c.regionLookupTimeout)
+		err = client.Dial(dialCtx)
+		cancel()
+
+		if err == nil {
+			if reg == c.adminRegionInfo {
+				reg.SetClient(client)
+				reg.MarkAvailable()
+				return
+			}
+
+			if err = isRegionEstablished(client, reg); err == nil {
+				// set region client so that as soon as we mark it available,
+				// concurrent readers are able to find the client
+				reg.SetClient(client)
+				reg.MarkAvailable()
+				return
+			} else if _, ok := err.(region.ServerError); ok {
+				// the client we got died
+				c.clientDown(client)
+			}
+		} else if err == context.Canceled {
+			// region is dead
+			reg.MarkAvailable()
+			return
+		} else {
+			// otherwise Dial failed, purge the client and retry.
+			// note that it's safer to reestablish all regions for this client as well
+			// because they could have ended up setteling for the same client.
+			c.clientDown(client)
+		}
+
+		log.WithFields(log.Fields{
+			"region":  reg,
+			"backoff": backoff,
+			"err":     err,
+		}).Debug("region was not established, retrying")
+		// reset address because we weren't able to connect to it
+		// or regionserver says it's still offline, should look up again
+		addr = ""
+	}
+}
+
+func (c *client) establishRegionForEmrcc(reg hrpc.RegionInfo, addr string, mip string, mport uint32) {
+	var backoff time.Duration
+	var err error
+	for {
+		backoff, err = sleepAndIncreaseBackoff(reg.Context(), backoff)
+		if err != nil {
+			// region is dead
+			reg.MarkAvailable()
+			return
+		}
+		if addr == "" {
+			// need to look up region and address of the regionserver
+			originalReg := reg
+			// lookup region forever until we get it or we learn that it doesn't exist
+			reg, addr, err = c.lookupRegionForEmrcc(originalReg.Context(),
+				fullyQualifiedTable(originalReg), originalReg.StartKey(), mip, mport)
 
 			if err == TableNotFound {
 				// region doesn't exist, delete it from caches
