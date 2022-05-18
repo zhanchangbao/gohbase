@@ -69,6 +69,22 @@ func (c *client) getRegionForRpc(rpc hrpc.Call) (hrpc.RegionInfo, error) {
 	return nil, ErrCannotFindRegion
 }
 
+func (c *client) getRegionForRpcForEmrcc(rpc hrpc.Call, rsip, mip string, rsport, mport uint32) (hrpc.RegionInfo, error) {
+	for i := 0; i < maxFindRegionTries; i++ {
+		// Check the cache for a region that can handle this request
+		if reg := c.getRegionFromCache(rpc.Table(), rpc.Key()); reg != nil {
+			return reg, nil
+		}
+
+		if reg, err := c.findRegionForEmrcc(rpc.Context(), rpc.Table(), rpc.Key(), rsip, mip, rsport, mport); reg != nil {
+			return reg, nil
+		} else if err != nil {
+			return nil, err
+		}
+	}
+	return nil, ErrCannotFindRegion
+}
+
 func (c *client) SendRPC(rpc hrpc.Call) (msg proto.Message, err error) {
 	start := time.Now()
 	origCtx := rpc.Context()
@@ -94,6 +110,71 @@ func (c *client) SendRPC(rpc hrpc.Call) (msg proto.Message, err error) {
 	}()
 
 	reg, err := c.getRegionForRpc(rpc)
+	if err != nil {
+		return nil, err
+	}
+
+	backoff := backoffStart
+	for {
+		msg, err := c.sendRPCToRegion(rpc, reg)
+		switch err.(type) {
+		case region.RetryableError:
+			sp.AddEvent("retrySleep")
+			backoff, err = sleepAndIncreaseBackoff(rpc.Context(), backoff)
+			if err != nil {
+				return msg, err
+			}
+		case region.ServerError, region.NotServingRegionError:
+			if ch := reg.AvailabilityChan(); ch != nil {
+				// The region is unavailable. Wait for it to become available,
+				// a new region or for the deadline to be exceeded.
+				select {
+				case <-rpc.Context().Done():
+					return nil, rpc.Context().Err()
+				case <-c.done:
+					return nil, ErrClientClosed
+				case <-ch:
+				}
+			}
+			if reg.Context().Err() != nil {
+				// region is dead because it was split or merged,
+				// lookup a new one and retry
+				reg, err = c.getRegionForRpc(rpc)
+				if err != nil {
+					return nil, err
+				}
+			}
+		default:
+			return msg, err
+		}
+	}
+}
+
+func (c *client) SendRPCForEmrcc(rpc hrpc.Call, rsip, mip string, rsport, mport uint32) (msg proto.Message, err error) {
+	start := time.Now()
+	origCtx := rpc.Context()
+	description := rpc.Description()
+	spCtx, sp := observability.StartSpan(origCtx, description)
+	rpc.SetContext(spCtx)
+	defer func() {
+		result := "ok"
+		if err != nil {
+			result = "error"
+			sp.SetStatus(codes.Error, err.Error())
+		}
+
+		o := operationDurationSeconds.With(prometheus.Labels{
+			"operation": description,
+			"result":    result,
+		})
+
+		observability.ObserveWithTrace(spCtx, o, time.Since(start).Seconds())
+		sp.End()
+
+		rpc.SetContext(origCtx)
+	}()
+
+	reg, err := c.getRegionForRpcForEmrcc(rpc, rsip, mip, rsport, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -278,10 +359,112 @@ func (c *client) lookupRegion(ctx context.Context,
 	}
 }
 
+func (c *client) lookupRegionForEmrcc(ctx context.Context,
+	table, key []byte, rsip, mip string, rsport, mport uint32) (hrpc.RegionInfo, string, error) {
+	var reg hrpc.RegionInfo
+	var addr string
+	var err error
+	backoff := backoffStart
+	for {
+		// If it takes longer than regionLookupTimeout, fail so that we can sleep
+		lookupCtx, cancel := context.WithTimeout(ctx, c.regionLookupTimeout)
+		if c.clientType == region.MasterClient {
+			log.WithField("resource", zk.Master).Debug("looking up master")
+
+			addr, err = c.zkLookupForEmrcc(lookupCtx, zk.Master, rsip, mip, rsport, mport)
+			cancel()
+			reg = c.adminRegionInfo
+		} else if bytes.Equal(table, metaTableName) {
+			log.WithField("resource", zk.Meta).Debug("looking up region server of hbase:meta")
+
+			addr, err = c.zkLookupForEmrcc(lookupCtx, zk.Meta, rsip, mip, rsport, mport)
+			cancel()
+			reg = c.metaRegionInfo
+		} else {
+			log.WithFields(log.Fields{
+				"table": strconv.Quote(string(table)),
+				"key":   strconv.Quote(string(key)),
+			}).Debug("looking up region")
+
+			reg, addr, err = c.metaLookup(lookupCtx, table, key)
+			cancel()
+			if err == TableNotFound {
+				log.WithFields(log.Fields{
+					"table": strconv.Quote(string(table)),
+					"key":   strconv.Quote(string(key)),
+					"err":   err,
+				}).Debug("hbase:meta does not know about this table/key")
+
+				return nil, "", err
+			} else if err == ErrClientClosed {
+				return nil, "", err
+			}
+		}
+		if err == nil {
+			log.WithFields(log.Fields{
+				"table":  strconv.Quote(string(table)),
+				"key":    strconv.Quote(string(key)),
+				"region": reg,
+				"addr":   addr,
+			}).Debug("looked up a region")
+
+			return reg, addr, nil
+		}
+
+		log.WithFields(log.Fields{
+			"table":   strconv.Quote(string(table)),
+			"key":     strconv.Quote(string(key)),
+			"backoff": backoff,
+			"err":     err,
+		}).Error("failed looking up region")
+
+		// This will be hit if there was an error locating the region
+		backoff, err = sleepAndIncreaseBackoff(ctx, backoff)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+}
+
 func (c *client) findRegion(ctx context.Context, table, key []byte) (hrpc.RegionInfo, error) {
 	// The region was not in the cache, it
 	// must be looked up in the meta table
 	reg, addr, err := c.lookupRegion(ctx, table, key)
+	if err != nil {
+		return nil, err
+	}
+
+	// We are the ones that looked up the region, so we need to
+	// mark in unavailable and find a client for it.
+	reg.MarkUnavailable()
+
+	if reg != c.metaRegionInfo && reg != c.adminRegionInfo {
+		// Check that the region wasn't added to
+		// the cache while we were looking it up.
+		overlaps, replaced := c.regions.put(reg)
+		if !replaced {
+			// the same or younger regions are already in cache, retry looking up in cache
+			return nil, nil
+		}
+
+		// otherwise, new region in cache, delete overlaps from client's cache
+		for _, r := range overlaps {
+			c.clients.del(r)
+		}
+	}
+
+	// Start a goroutine to connect to the region
+	go c.establishRegion(reg, addr)
+
+	// Wait for the new region to become
+	// available, and then send the RPC
+	return reg, nil
+}
+
+func (c *client) findRegionForEmrcc(ctx context.Context, table, key []byte, rsip, mip string, rsport, mport uint32) (hrpc.RegionInfo, error) {
+	// The region was not in the cache, it
+	// must be looked up in the meta table
+	reg, addr, err := c.lookupRegionForEmrcc(ctx, table, key, rsip, mip, rsport, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -621,6 +804,25 @@ func (c *client) zkLookup(ctx context.Context, resource zk.ResourceName) (string
 	reschan := make(chan zkResult, 1)
 	go func() {
 		addr, err := c.zkClient.LocateResource(resource.Prepend(c.zkRoot))
+		// This is guaranteed to never block as the channel is always buffered.
+		reschan <- zkResult{addr, err}
+	}()
+	select {
+	case res := <-reschan:
+		return res.addr, res.err
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+// zkLookupForEmrcc asynchronously looks up the meta region or HMaster in ZooKeeper.
+func (c *client) zkLookupForEmrcc(ctx context.Context, resource zk.ResourceName, rsip, mip string, rsport, mport uint32) (string, error) {
+	// We make this a buffered channel so that if we stop waiting due to a
+	// timeout, we won't block the zkLookupSync() that we start in a
+	// separate goroutine.
+	reschan := make(chan zkResult, 1)
+	go func() {
+		addr, err := c.zkClient.LocateResourceForEmrcc(resource.Prepend(c.zkRoot), rsip, mip, rsport, mport)
 		// This is guaranteed to never block as the channel is always buffered.
 		reschan <- zkResult{addr, err}
 	}()

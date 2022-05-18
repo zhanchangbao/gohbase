@@ -53,6 +53,7 @@ const (
 // Client is an interface of client that retrieves meta infomation from zookeeper
 type Client interface {
 	LocateResource(ResourceName) (string, error)
+	LocateResourceForEmrcc(ResourceName, string, string, uint32, uint32) (string, error)
 }
 
 type client struct {
@@ -113,6 +114,59 @@ func (c *client) LocateResource(resource ResourceName) (string, error) {
 				fmt.Errorf("failed to deserialize the Master entry from ZK: %s", err)
 		}
 		server = master.Master
+	}
+	return net.JoinHostPort(*server.HostName, fmt.Sprint(*server.Port)), nil
+}
+
+// LocateResourceForEmrcc returns address of the server for the specified resource.
+func (c *client) LocateResourceForEmrcc(resource ResourceName, rsip, mip string, rsport, mport uint32) (string, error) {
+	conn, _, err := zk.Connect(c.zks, c.sessionTimeout)
+	if err != nil {
+		return "", fmt.Errorf("error connecting to ZooKeeper at %v: %s", c.zks, err)
+	}
+	defer conn.Close()
+
+	buf, _, err := conn.Get(string(resource))
+	if err != nil {
+		return "", fmt.Errorf("failed to read the %s znode: %s", resource, err)
+	}
+	if len(buf) == 0 {
+		log.Fatalf("%s was empty!", resource)
+	} else if buf[0] != 0xFF {
+		return "", fmt.Errorf("the first byte of %s was 0x%x, not 0xFF", resource, buf[0])
+	}
+	metadataLen := binary.BigEndian.Uint32(buf[1:])
+	if metadataLen < 1 || metadataLen > 65000 {
+		return "", fmt.Errorf("invalid metadata length for %s: %d", resource, metadataLen)
+	}
+	buf = buf[1+4+metadataLen:]
+	magic := binary.BigEndian.Uint32(buf)
+	const pbufMagic = 1346524486 // 4 bytes: "PBUF"
+	if magic != pbufMagic {
+		return "", fmt.Errorf("invalid magic number for %s: %d", resource, magic)
+	}
+	buf = buf[4:]
+	var server *pb.ServerName
+	if resource == Meta {
+		meta := &pb.MetaRegionServer{}
+		err = proto.Unmarshal(buf, meta)
+		if err != nil {
+			return "",
+				fmt.Errorf("failed to deserialize the MetaRegionServer entry from ZK: %s", err)
+		}
+		server = meta.Server
+		server.HostName = &rsip
+		server.Port = &rsport
+	} else {
+		master := &pb.Master{}
+		err = proto.Unmarshal(buf, master)
+		if err != nil {
+			return "",
+				fmt.Errorf("failed to deserialize the Master entry from ZK: %s", err)
+		}
+		server = master.Master
+		server.HostName = &mip
+		server.Port = &mport
 	}
 	return net.JoinHostPort(*server.HostName, fmt.Sprint(*server.Port)), nil
 }
