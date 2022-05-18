@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"io"
 	"net"
 	"strings"
@@ -19,8 +20,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/170/attribute"
-	"go.opentelemetry.io/otel/170/codes"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/zhanchangbao/gohbase/hrpc"
 	"github.com/zhanchangbao/gohbase/internal/observability"
