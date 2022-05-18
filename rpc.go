@@ -69,14 +69,14 @@ func (c *client) getRegionForRpc(rpc hrpc.Call) (hrpc.RegionInfo, error) {
 	return nil, ErrCannotFindRegion
 }
 
-func (c *client) getRegionForRpcForEmrcc(rpc hrpc.Call, rsip, mip string, rsport, mport uint32) (hrpc.RegionInfo, error) {
+func (c *client) getRegionForRpcForEmrcc(rpc hrpc.Call, mip string, mport uint32) (hrpc.RegionInfo, error) {
 	for i := 0; i < maxFindRegionTries; i++ {
 		// Check the cache for a region that can handle this request
 		if reg := c.getRegionFromCache(rpc.Table(), rpc.Key()); reg != nil {
 			return reg, nil
 		}
 
-		if reg, err := c.findRegionForEmrcc(rpc.Context(), rpc.Table(), rpc.Key(), rsip, mip, rsport, mport); reg != nil {
+		if reg, err := c.findRegionForEmrcc(rpc.Context(), rpc.Table(), rpc.Key(), mip, mport); reg != nil {
 			return reg, nil
 		} else if err != nil {
 			return nil, err
@@ -150,7 +150,7 @@ func (c *client) SendRPC(rpc hrpc.Call) (msg proto.Message, err error) {
 	}
 }
 
-func (c *client) SendRPCForEmrcc(rpc hrpc.Call, rsip, mip string, rsport, mport uint32) (msg proto.Message, err error) {
+func (c *client) SendRPCForEmrcc(rpc hrpc.Call, mip string, mport uint32) (msg proto.Message, err error) {
 	start := time.Now()
 	origCtx := rpc.Context()
 	description := rpc.Description()
@@ -174,7 +174,7 @@ func (c *client) SendRPCForEmrcc(rpc hrpc.Call, rsip, mip string, rsport, mport 
 		rpc.SetContext(origCtx)
 	}()
 
-	reg, err := c.getRegionForRpcForEmrcc(rpc, rsip, mip, rsport, mport)
+	reg, err := c.getRegionForRpcForEmrcc(rpc, mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +360,7 @@ func (c *client) lookupRegion(ctx context.Context,
 }
 
 func (c *client) lookupRegionForEmrcc(ctx context.Context,
-	table, key []byte, rsip, mip string, rsport, mport uint32) (hrpc.RegionInfo, string, error) {
+	table, key []byte, mip string, mport uint32) (hrpc.RegionInfo, string, error) {
 	var reg hrpc.RegionInfo
 	var addr string
 	var err error
@@ -371,13 +371,13 @@ func (c *client) lookupRegionForEmrcc(ctx context.Context,
 		if c.clientType == region.MasterClient {
 			log.WithField("resource", zk.Master).Debug("looking up master")
 
-			addr, err = c.zkLookupForEmrcc(lookupCtx, zk.Master, rsip, mip, rsport, mport)
+			addr, err = c.zkLookupForEmrcc(lookupCtx, zk.Master, mip, mport)
 			cancel()
 			reg = c.adminRegionInfo
 		} else if bytes.Equal(table, metaTableName) {
 			log.WithField("resource", zk.Meta).Debug("looking up region server of hbase:meta")
 
-			addr, err = c.zkLookupForEmrcc(lookupCtx, zk.Meta, rsip, mip, rsport, mport)
+			addr, err = c.zkLookupForEmrcc(lookupCtx, zk.Meta, mip, mport)
 			cancel()
 			reg = c.metaRegionInfo
 		} else {
@@ -461,10 +461,10 @@ func (c *client) findRegion(ctx context.Context, table, key []byte) (hrpc.Region
 	return reg, nil
 }
 
-func (c *client) findRegionForEmrcc(ctx context.Context, table, key []byte, rsip, mip string, rsport, mport uint32) (hrpc.RegionInfo, error) {
+func (c *client) findRegionForEmrcc(ctx context.Context, table, key []byte, mip string, mport uint32) (hrpc.RegionInfo, error) {
 	// The region was not in the cache, it
 	// must be looked up in the meta table
-	reg, addr, err := c.lookupRegionForEmrcc(ctx, table, key, rsip, mip, rsport, mport)
+	reg, addr, err := c.lookupRegionForEmrcc(ctx, table, key, mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -816,13 +816,13 @@ func (c *client) zkLookup(ctx context.Context, resource zk.ResourceName) (string
 }
 
 // zkLookupForEmrcc asynchronously looks up the meta region or HMaster in ZooKeeper.
-func (c *client) zkLookupForEmrcc(ctx context.Context, resource zk.ResourceName, rsip, mip string, rsport, mport uint32) (string, error) {
+func (c *client) zkLookupForEmrcc(ctx context.Context, resource zk.ResourceName, mip string, mport uint32) (string, error) {
 	// We make this a buffered channel so that if we stop waiting due to a
 	// timeout, we won't block the zkLookupSync() that we start in a
 	// separate goroutine.
 	reschan := make(chan zkResult, 1)
 	go func() {
-		addr, err := c.zkClient.LocateResourceForEmrcc(resource.Prepend(c.zkRoot), rsip, mip, rsport, mport)
+		addr, err := c.zkClient.LocateResourceForEmrcc(resource.Prepend(c.zkRoot), mip, mport)
 		// This is guaranteed to never block as the channel is always buffered.
 		reschan <- zkResult{addr, err}
 	}()

@@ -34,14 +34,14 @@ type AdminClient interface {
 	DeleteSnapshot(t *hrpc.Snapshot) error
 	ListSnapshots(t *hrpc.ListSnapshots) ([]*pb.SnapshotDescription, error)
 	RestoreSnapshot(t *hrpc.Snapshot) error
-	ClusterStatus(rsip, mip string, rsport, mport uint32) (*pb.ClusterStatus, error)
+	ClusterStatus(mip string, mport uint32) (*pb.ClusterStatus, error)
 	ListTableNames(t *hrpc.ListTableNames) ([]*pb.TableName, error)
 	// SetBalancer sets balancer state and returns previous state
 	SetBalancer(sb *hrpc.SetBalancer) (bool, error)
 	// MoveRegion moves a region to a different RegionServer
 	MoveRegion(mr *hrpc.MoveRegion) error
-	GetLocks(rsip, mip string, rsport, mport uint32) ([]*pb.LockedResource, error)
-	GetProcedures(rsip, mip string, rsport, mport uint32) ([]*pb.Procedure, error)
+	GetLocks(mip string, mport uint32) ([]*pb.LockedResource, error)
+	GetProcedures(mip string, mport uint32) ([]*pb.Procedure, error)
 }
 
 // NewAdminClient creates an admin HBase client.
@@ -74,8 +74,8 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 }
 
 // GetLocks Get the locks of the cluster
-func (c *client) GetLocks(rsip, mip string, rsport, mport uint32) ([]*pb.LockedResource, error) {
-	pbmsg, err := c.SendRPCForEmrcc(hrpc.NewLock(), rsip, mip, rsport, mport)
+func (c *client) GetLocks(mip string, mport uint32) ([]*pb.LockedResource, error) {
+	pbmsg, err := c.SendRPCForEmrcc(hrpc.NewLock(), mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +89,8 @@ func (c *client) GetLocks(rsip, mip string, rsport, mport uint32) ([]*pb.LockedR
 }
 
 // ClusterStatus Get the status of the cluster
-func (c *client) ClusterStatus(rsip, mip string, rsport, mport uint32) (*pb.ClusterStatus, error) {
-	pbmsg, err := c.SendRPCForEmrcc(hrpc.NewLock(), rsip, mip, rsport, mport)
+func (c *client) ClusterStatus(mip string, mport uint32) (*pb.ClusterStatus, error) {
+	pbmsg, err := c.SendRPCForEmrcc(hrpc.NewLock(), mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -104,8 +104,8 @@ func (c *client) ClusterStatus(rsip, mip string, rsport, mport uint32) (*pb.Clus
 }
 
 // GetProcedures Get the procedures of the cluster
-func (c *client) GetProcedures(rsip, mip string, rsport, mport uint32) ([]*pb.Procedure, error) {
-	pbmsg, err := c.SendRPCForEmrcc(hrpc.NewLock(), rsip, mip, rsport, mport)
+func (c *client) GetProcedures(mip string, mport uint32) ([]*pb.Procedure, error) {
+	pbmsg, err := c.SendRPCForEmrcc(hrpc.NewLock(), mip, mport)
 	if err != nil {
 		return nil, err
 	}

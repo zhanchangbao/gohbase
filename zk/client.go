@@ -53,7 +53,7 @@ const (
 // Client is an interface of client that retrieves meta infomation from zookeeper
 type Client interface {
 	LocateResource(ResourceName) (string, error)
-	LocateResourceForEmrcc(ResourceName, string, string, uint32, uint32) (string, error)
+	LocateResourceForEmrcc(ResourceName, string, uint32) (string, error)
 }
 
 type client struct {
@@ -119,7 +119,7 @@ func (c *client) LocateResource(resource ResourceName) (string, error) {
 }
 
 // LocateResourceForEmrcc returns address of the server for the specified resource.
-func (c *client) LocateResourceForEmrcc(resource ResourceName, rsip, mip string, rsport, mport uint32) (string, error) {
+func (c *client) LocateResourceForEmrcc(resource ResourceName, mip string, mport uint32) (string, error) {
 	conn, _, err := zk.Connect(c.zks, c.sessionTimeout)
 	if err != nil {
 		return "", fmt.Errorf("error connecting to ZooKeeper at %v: %s", c.zks, err)
@@ -155,8 +155,6 @@ func (c *client) LocateResourceForEmrcc(resource ResourceName, rsip, mip string,
 				fmt.Errorf("failed to deserialize the MetaRegionServer entry from ZK: %s", err)
 		}
 		server = meta.Server
-		server.HostName = &rsip
-		server.Port = &rsport
 	} else {
 		master := &pb.Master{}
 		err = proto.Unmarshal(buf, master)
