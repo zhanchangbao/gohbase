@@ -53,14 +53,14 @@ const (
 	backoffStart = 16 * time.Millisecond
 )
 
-func (c *client) getRegionForRpc(rpc hrpc.Call) (hrpc.RegionInfo, error) {
+func (c *client) getRegionForRpc(rpc hrpc.Call, mip string, mport uint32) (hrpc.RegionInfo, error) {
 	for i := 0; i < maxFindRegionTries; i++ {
 		// Check the cache for a region that can handle this request
 		if reg := c.getRegionFromCache(rpc.Table(), rpc.Key()); reg != nil {
 			return reg, nil
 		}
 
-		if reg, err := c.findRegion(rpc.Context(), rpc.Table(), rpc.Key()); reg != nil {
+		if reg, err := c.findRegion(rpc.Context(), rpc.Table(), rpc.Key(), mip, mport); reg != nil {
 			return reg, nil
 		} else if err != nil {
 			return nil, err
@@ -85,7 +85,7 @@ func (c *client) getRegionForRpcForEmrcc(rpc hrpc.Call, mip string, mport uint32
 	return nil, ErrCannotFindRegion
 }
 
-func (c *client) SendRPC(rpc hrpc.Call) (msg proto.Message, err error) {
+func (c *client) SendRPC(rpc hrpc.Call, mip string, mport uint32) (msg proto.Message, err error) {
 	start := time.Now()
 	origCtx := rpc.Context()
 	description := rpc.Description()
@@ -109,14 +109,14 @@ func (c *client) SendRPC(rpc hrpc.Call) (msg proto.Message, err error) {
 		rpc.SetContext(origCtx)
 	}()
 
-	reg, err := c.getRegionForRpc(rpc)
+	reg, err := c.getRegionForRpc(rpc, mip, mport)
 	if err != nil {
 		return nil, err
 	}
 
 	backoff := backoffStart
 	for {
-		msg, err := c.sendRPCToRegion(rpc, reg)
+		msg, err := c.sendRPCToRegion(rpc, reg, mip, mport)
 		switch err.(type) {
 		case region.RetryableError:
 			sp.AddEvent("retrySleep")
@@ -139,7 +139,7 @@ func (c *client) SendRPC(rpc hrpc.Call) (msg proto.Message, err error) {
 			if reg.Context().Err() != nil {
 				// region is dead because it was split or merged,
 				// lookup a new one and retry
-				reg, err = c.getRegionForRpc(rpc)
+				reg, err = c.getRegionForRpc(rpc, mip, mport)
 				if err != nil {
 					return nil, err
 				}
@@ -181,7 +181,7 @@ func (c *client) SendRPCForEmrcc(rpc hrpc.Call, mip string, mport uint32) (msg p
 
 	backoff := backoffStart
 	for {
-		msg, err := c.sendRPCToRegion(rpc, reg)
+		msg, err := c.sendRPCToRegion(rpc, reg, mip, mport)
 		switch err.(type) {
 		case region.RetryableError:
 			sp.AddEvent("retrySleep")
@@ -204,7 +204,7 @@ func (c *client) SendRPCForEmrcc(rpc hrpc.Call, mip string, mport uint32) (msg p
 			if reg.Context().Err() != nil {
 				// region is dead because it was split or merged,
 				// lookup a new one and retry
-				reg, err = c.getRegionForRpc(rpc)
+				reg, err = c.getRegionForRpc(rpc, mip, mport)
 				if err != nil {
 					return nil, err
 				}
@@ -228,7 +228,7 @@ func sendBlocking(rc hrpc.RegionClient, rpc hrpc.Call) (hrpc.RPCResult, error) {
 	}
 }
 
-func (c *client) sendRPCToRegion(rpc hrpc.Call, reg hrpc.RegionInfo) (proto.Message, error) {
+func (c *client) sendRPCToRegion(rpc hrpc.Call, reg hrpc.RegionInfo, mip string, mport uint32) (proto.Message, error) {
 	if reg.IsUnavailable() {
 		return nil, region.NotServingRegionError{}
 	}
@@ -242,7 +242,7 @@ func (c *client) sendRPCToRegion(rpc hrpc.Call, reg hrpc.RegionInfo) (proto.Mess
 		if reg.MarkUnavailable() {
 			// If this was the first goroutine to mark the region as
 			// unavailable, start a goroutine to reestablish a connection
-			go c.reestablishRegion(reg)
+			go c.reestablishRegion(reg, mip, mport)
 		}
 		return nil, region.NotServingRegionError{}
 	}
@@ -259,7 +259,7 @@ func (c *client) sendRPCToRegion(rpc hrpc.Call, reg hrpc.RegionInfo) (proto.Mess
 		// the client), and start a goroutine to reestablish
 		// it.
 		if reg.MarkUnavailable() {
-			go c.reestablishRegion(reg)
+			go c.reestablishRegion(reg, mip, mport)
 		}
 	case region.ServerError:
 		// If it was an unrecoverable error, the region client is
@@ -269,10 +269,10 @@ func (c *client) sendRPCToRegion(rpc hrpc.Call, reg hrpc.RegionInfo) (proto.Mess
 			// as unavailable and start up a goroutine to
 			// reconnect if it wasn't already marked as such.
 			if reg.MarkUnavailable() {
-				go c.reestablishRegion(reg)
+				go c.reestablishRegion(reg, mip, mport)
 			}
 		} else {
-			c.clientDown(client)
+			c.clientDown(client, mip, mport)
 		}
 	}
 	return res.Msg, res.Error
@@ -282,12 +282,12 @@ func (c *client) sendRPCToRegion(rpc hrpc.Call, reg hrpc.RegionInfo) (proto.Mess
 // all the regions sharing this region's
 // client as unavailable, and start a goroutine
 // to reconnect for each of them.
-func (c *client) clientDown(client hrpc.RegionClient) {
+func (c *client) clientDown(client hrpc.RegionClient, mip string, mport uint32) {
 	downregions := c.clients.clientDown(client)
 	for downreg := range downregions {
 		if downreg.MarkUnavailable() {
 			downreg.SetClient(nil)
-			go c.reestablishRegion(downreg)
+			go c.reestablishRegion(downreg, mip, mport)
 		}
 	}
 }
@@ -426,7 +426,7 @@ func (c *client) lookupRegionForEmrcc(ctx context.Context,
 	}
 }
 
-func (c *client) findRegion(ctx context.Context, table, key []byte) (hrpc.RegionInfo, error) {
+func (c *client) findRegion(ctx context.Context, table, key []byte, mip string, mport uint32) (hrpc.RegionInfo, error) {
 	// The region was not in the cache, it
 	// must be looked up in the meta table
 	reg, addr, err := c.lookupRegion(ctx, table, key)
@@ -454,7 +454,7 @@ func (c *client) findRegion(ctx context.Context, table, key []byte) (hrpc.Region
 	}
 
 	// Start a goroutine to connect to the region
-	go c.establishRegion(reg, addr)
+	go c.establishRegion(reg, addr, mip, mport)
 
 	// Wait for the new region to become
 	// available, and then send the RPC
@@ -489,7 +489,7 @@ func (c *client) findRegionForEmrcc(ctx context.Context, table, key []byte, mip 
 	}
 
 	// Start a goroutine to connect to the region
-	go c.establishRegionForEmrcc(reg, addr, mip, mport)
+	go c.establishRegion(reg, addr, mip, mport)
 
 	// Wait for the new region to become
 	// available, and then send the RPC
@@ -592,7 +592,7 @@ func fullyQualifiedTable(reg hrpc.RegionInfo) []byte {
 	return fqTable
 }
 
-func (c *client) reestablishRegion(reg hrpc.RegionInfo) {
+func (c *client) reestablishRegion(reg hrpc.RegionInfo, mip string, mport uint32) {
 	select {
 	case <-c.done:
 		return
@@ -600,7 +600,7 @@ func (c *client) reestablishRegion(reg hrpc.RegionInfo) {
 	}
 
 	log.WithField("region", reg).Debug("reestablishing region")
-	c.establishRegion(reg, "")
+	c.establishRegion(reg, "", mip, mport)
 }
 
 // probeKey returns a key in region that is unlikely to have data at it
@@ -638,7 +638,7 @@ func isRegionEstablished(rc hrpc.RegionClient, reg hrpc.RegionInfo) error {
 	}
 }
 
-func (c *client) establishRegion(reg hrpc.RegionInfo, addr string) {
+func (c *client) establishRegion(reg hrpc.RegionInfo, addr string, mip string, mport uint32) {
 	var backoff time.Duration
 	var err error
 	for {
@@ -652,8 +652,8 @@ func (c *client) establishRegion(reg hrpc.RegionInfo, addr string) {
 			// need to look up region and address of the regionserver
 			originalReg := reg
 			// lookup region forever until we get it or we learn that it doesn't exist
-			reg, addr, err = c.lookupRegion(originalReg.Context(),
-				fullyQualifiedTable(originalReg), originalReg.StartKey())
+			reg, addr, err = c.lookupRegionForEmrcc(originalReg.Context(),
+				fullyQualifiedTable(originalReg), originalReg.StartKey(), mip, mport)
 
 			if err == TableNotFound {
 				// region doesn't exist, delete it from caches
@@ -749,7 +749,7 @@ func (c *client) establishRegion(reg hrpc.RegionInfo, addr string) {
 				return
 			} else if _, ok := err.(region.ServerError); ok {
 				// the client we got died
-				c.clientDown(client)
+				c.clientDown(client, mip, mport)
 			}
 		} else if err == context.Canceled {
 			// region is dead
@@ -759,7 +759,7 @@ func (c *client) establishRegion(reg hrpc.RegionInfo, addr string) {
 			// otherwise Dial failed, purge the client and retry.
 			// note that it's safer to reestablish all regions for this client as well
 			// because they could have ended up setteling for the same client.
-			c.clientDown(client)
+			c.clientDown(client, mip, mport)
 		}
 
 		log.WithFields(log.Fields{
@@ -884,7 +884,7 @@ func (c *client) establishRegionForEmrcc(reg hrpc.RegionInfo, addr string, mip s
 				return
 			} else if _, ok := err.(region.ServerError); ok {
 				// the client we got died
-				c.clientDown(client)
+				c.clientDown(client, mip, mport)
 			}
 		} else if err == context.Canceled {
 			// region is dead
@@ -894,7 +894,7 @@ func (c *client) establishRegionForEmrcc(reg hrpc.RegionInfo, addr string, mip s
 			// otherwise Dial failed, purge the client and retry.
 			// note that it's safer to reestablish all regions for this client as well
 			// because they could have ended up setteling for the same client.
-			c.clientDown(client)
+			c.clientDown(client, mip, mport)
 		}
 
 		log.WithFields(log.Fields{
