@@ -155,6 +155,8 @@ func (c *client) LocateResourceForEmrcc(resource ResourceName, mip string, mport
 				fmt.Errorf("failed to deserialize the MetaRegionServer entry from ZK: %s", err)
 		}
 		server = meta.Server
+		server.HostName = &mip
+		server.Port = &mport
 	} else {
 		master := &pb.Master{}
 		err = proto.Unmarshal(buf, master)
