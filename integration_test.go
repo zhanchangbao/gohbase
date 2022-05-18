@@ -6,7 +6,7 @@
 //go:build integration
 // +build integration
 
-package gohbase_test
+package main_test
 
 import (
 	"bytes"
@@ -26,7 +26,6 @@ import (
 	"math"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zhanchangbao/gohbase"
 	"github.com/zhanchangbao/gohbase/filter"
 	"github.com/zhanchangbao/gohbase/hrpc"
 	"github.com/zhanchangbao/gohbase/pb"

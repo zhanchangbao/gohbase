@@ -45,13 +45,13 @@ type Scanner interface {
 	// In case of an error, only the first call to Next() will return partial
 	// result (could be not a complete row) and the actual error,
 	// the subsequent calls will return io.EOF error.
-	Next() (*Result, error)
+	Next(string, uint32) (*Result, error)
 
 	// Close should be called if it is desired to stop scanning before getting all of results.
 	// If you call Next() after calling Close() you might still get buffered results.
 	// Othwerwise, in case all results have been delivered or in case of an error, the Scanner
 	// will be closed automatically. It's okay to close an already closed scanner.
-	Close() error
+	Close(string, uint32) error
 }
 
 // Scan represents a scanner on an HBase table.

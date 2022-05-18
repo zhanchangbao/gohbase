@@ -3,7 +3,7 @@
 // Use of this source code is governed by the Apache License 2.0
 // that can be found in the COPYING file.
 
-package gohbase
+package main
 
 import (
 	"bytes"
@@ -293,7 +293,7 @@ func (c *client) clientDown(client hrpc.RegionClient, mip string, mport uint32) 
 }
 
 func (c *client) lookupRegion(ctx context.Context,
-	table, key []byte) (hrpc.RegionInfo, string, error) {
+	table, key []byte, mip string, mport uint32) (hrpc.RegionInfo, string, error) {
 	var reg hrpc.RegionInfo
 	var addr string
 	var err error
@@ -319,7 +319,7 @@ func (c *client) lookupRegion(ctx context.Context,
 				"key":   strconv.Quote(string(key)),
 			}).Debug("looking up region")
 
-			reg, addr, err = c.metaLookup(lookupCtx, table, key)
+			reg, addr, err = c.metaLookup(lookupCtx, table, key, mip, mport)
 			cancel()
 			if err == TableNotFound {
 				log.WithFields(log.Fields{
@@ -386,7 +386,7 @@ func (c *client) lookupRegionForEmrcc(ctx context.Context,
 				"key":   strconv.Quote(string(key)),
 			}).Debug("looking up region")
 
-			reg, addr, err = c.metaLookup(lookupCtx, table, key)
+			reg, addr, err = c.metaLookup(lookupCtx, table, key, mip, mport)
 			cancel()
 			if err == TableNotFound {
 				log.WithFields(log.Fields{
@@ -429,7 +429,7 @@ func (c *client) lookupRegionForEmrcc(ctx context.Context,
 func (c *client) findRegion(ctx context.Context, table, key []byte, mip string, mport uint32) (hrpc.RegionInfo, error) {
 	// The region was not in the cache, it
 	// must be looked up in the meta table
-	reg, addr, err := c.lookupRegion(ctx, table, key)
+	reg, addr, err := c.lookupRegion(ctx, table, key, mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +541,7 @@ func createRegionSearchKey(table, key []byte) []byte {
 
 // metaLookup checks meta table for the region in which the given row key for the given table is.
 func (c *client) metaLookup(ctx context.Context,
-	table, key []byte) (hrpc.RegionInfo, string, error) {
+	table, key []byte, mip string, mport uint32) (hrpc.RegionInfo, string, error) {
 	metaKey := createRegionSearchKey(table, key)
 	rpc, err := hrpc.NewScanRange(ctx, metaTableName, metaKey, table,
 		hrpc.Families(infoFamily),
@@ -553,7 +553,7 @@ func (c *client) metaLookup(ctx context.Context,
 	}
 
 	scanner := c.Scan(rpc)
-	resp, err := scanner.Next()
+	resp, err := scanner.Next(mip, mport)
 	if err == io.EOF {
 		return nil, "", TableNotFound
 	}

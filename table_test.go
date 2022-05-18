@@ -6,7 +6,7 @@
 //go:build integration
 // +build integration
 
-package gohbase_test
+package main_test
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zhanchangbao/gohbase"
 	"github.com/zhanchangbao/gohbase/filter"
 	"github.com/zhanchangbao/gohbase/hrpc"
 )

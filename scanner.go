@@ -3,7 +3,7 @@
 // Use of this source code is governed by the Apache License 2.0
 // that can be found in the COPYING file.
 
-package gohbase
+package main
 
 import (
 	"bytes"
@@ -35,19 +35,19 @@ type scanner struct {
 	closed   bool
 }
 
-func (s *scanner) fetch() ([]*pb.Result, error) {
+func (s *scanner) fetch(mip string, mport uint32) ([]*pb.Result, error) {
 	// keep looping until we have error, some non-empty result or until close
 	for {
-		resp, region, err := s.request()
+		resp, region, err := s.request(mip, mport)
 		if err != nil {
-			s.Close()
+			s.Close(mip, mport)
 			return nil, err
 		}
 
-		s.update(resp, region)
+		s.update(resp, region, mip, mport)
 
 		if s.isDone(resp, region) {
-			s.Close()
+			s.Close(mip, mport)
 		}
 
 		if rs := resp.Results; len(rs) > 0 {
@@ -58,14 +58,14 @@ func (s *scanner) fetch() ([]*pb.Result, error) {
 	}
 }
 
-func (s *scanner) peek() (*pb.Result, error) {
+func (s *scanner) peek(mip string, mport uint32) (*pb.Result, error) {
 	if len(s.results) == 0 {
 		if s.closed {
 			// done scanning
 			return nil, io.EOF
 		}
 
-		rs, err := s.fetch()
+		rs, err := s.fetch(mip, mport)
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +126,7 @@ func toLocalResult(r *pb.Result) *hrpc.Result {
 	return hrpc.ToLocalResult(r)
 }
 
-func (s *scanner) Next() (*hrpc.Result, error) {
+func (s *scanner) Next(mip string, mport uint32) (*hrpc.Result, error) {
 	var (
 		result, partial *pb.Result
 		err             error
@@ -134,14 +134,14 @@ func (s *scanner) Next() (*hrpc.Result, error) {
 
 	select {
 	case <-s.rpc.Context().Done():
-		s.Close()
+		s.Close(mip, mport)
 		return nil, s.rpc.Context().Err()
 	default:
 	}
 
 	if s.rpc.AllowPartialResults() {
 		// if client handles partials, just return it
-		result, err := s.peek()
+		result, err := s.peek(mip, mport)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +150,7 @@ func (s *scanner) Next() (*hrpc.Result, error) {
 	}
 
 	for {
-		partial, err = s.peek()
+		partial, err = s.peek(mip, mport)
 		if err == io.EOF && result != nil {
 			// no more results, return what we have. Next call to the Next() will get EOF
 			result.Partial = proto.Bool(false)
@@ -173,7 +173,7 @@ func (s *scanner) Next() (*hrpc.Result, error) {
 	}
 }
 
-func (s *scanner) request() (*pb.ScanResponse, hrpc.RegionInfo, error) {
+func (s *scanner) request(mip string, mport uint32) (*pb.ScanResponse, hrpc.RegionInfo, error) {
 	var (
 		rpc *hrpc.Scan
 		err error
@@ -200,7 +200,7 @@ func (s *scanner) request() (*pb.ScanResponse, hrpc.RegionInfo, error) {
 		return nil, nil, err
 	}
 
-	res, err := s.SendRPC(rpc)
+	res, err := s.SendRPC(rpc, mip, mport)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,13 +212,13 @@ func (s *scanner) request() (*pb.ScanResponse, hrpc.RegionInfo, error) {
 }
 
 // update updates the scanner for the next scan request
-func (s *scanner) update(resp *pb.ScanResponse, region hrpc.RegionInfo) {
+func (s *scanner) update(resp *pb.ScanResponse, region hrpc.RegionInfo, mip string, mport uint32) {
 	if s.isRegionScannerClosed() && resp.ScannerId != nil {
 		s.openRegionScanner(resp.GetScannerId())
 	}
 	if !resp.GetMoreResultsInRegion() {
 		// we are done with this region, prepare scan for next region
-		s.closeRegionScanner()
+		s.closeRegionScanner(mip, mport)
 
 		// Normal Scan
 		if !s.rpc.Reversed() {
@@ -249,13 +249,13 @@ func (s *scanner) update(resp *pb.ScanResponse, region hrpc.RegionInfo) {
 	}
 }
 
-func (s *scanner) Close() error {
+func (s *scanner) Close(mip string, mport uint32) error {
 	if s.closed {
 		return nil
 	}
 	s.closed = true
 	// close the last region scanner
-	s.closeRegionScanner()
+	s.closeRegionScanner(mip, mport)
 	return nil
 }
 
@@ -302,7 +302,7 @@ func (s *scanner) openRegionScanner(scannerId uint64) {
 	s.curRegionScannerID = scannerId
 }
 
-func (s *scanner) closeRegionScanner() {
+func (s *scanner) closeRegionScanner(mip string, mport uint32) {
 	if s.isRegionScannerClosed() {
 		return
 	}
@@ -323,7 +323,7 @@ func (s *scanner) closeRegionScanner() {
 		// If the request fails, the scanner lease will be expired
 		// and it will be closed automatically by hbase.
 		// No need to bother clients about that.
-		go s.SendRPC(rpc)
+		go s.SendRPC(rpc, mip, mport)
 	}
 	s.curRegionScannerID = noScannerID
 }
