@@ -6,7 +6,7 @@
 //go:build integration
 // +build integration
 
-package main_test
+package gohbase_test
 
 import (
 	"context"
