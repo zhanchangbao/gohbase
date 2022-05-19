@@ -64,7 +64,7 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 		effectiveUser:       defaultEffectiveUser,
 		regionLookupTimeout: region.DefaultLookupTimeout,
 		regionReadTimeout:   region.DefaultReadTimeout,
-		newRegionClientFn:   region.NewClient,
+		//newRegionClientFn:   region.NewClient,
 	}
 	for _, option := range options {
 		option(c)
