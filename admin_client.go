@@ -34,14 +34,14 @@ type AdminClient interface {
 	DeleteSnapshot(t *hrpc.Snapshot) error
 	ListSnapshots(t *hrpc.ListSnapshots) ([]*pb.SnapshotDescription, error)
 	RestoreSnapshot(t *hrpc.Snapshot) error
-	ClusterStatus() (*pb.ClusterStatus, error)
+	ClusterStatus(string, uint32) (*pb.ClusterStatus, error)
 	ListTableNames(t *hrpc.ListTableNames) ([]*pb.TableName, error)
 	// SetBalancer sets balancer state and returns previous state
 	SetBalancer(sb *hrpc.SetBalancer) (bool, error)
 	// MoveRegion moves a region to a different RegionServer
 	MoveRegion(mr *hrpc.MoveRegion) error
-	GetLocks() ([]*pb.LockedResource, error)
-	GetProcedures() ([]*pb.Procedure, error)
+	GetLocks(string, uint32) ([]*pb.LockedResource, error)
+	GetProcedures(string, uint32) ([]*pb.Procedure, error)
 }
 
 // NewAdminClient creates an admin HBase client.
@@ -64,7 +64,7 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 		effectiveUser:       defaultEffectiveUser,
 		regionLookupTimeout: region.DefaultLookupTimeout,
 		regionReadTimeout:   region.DefaultReadTimeout,
-		//newRegionClientFn:   region.NewClient,
+		newRegionClientFn:   region.NewClient,
 	}
 	for _, option := range options {
 		option(c)
@@ -74,8 +74,9 @@ func newAdminClient(zkquorum string, options ...Option) AdminClient {
 }
 
 // GetLocks Get the locks of the cluster
-func (c *client) GetLocks() ([]*pb.LockedResource, error) {
-	pbmsg, err := c.SendRPC(hrpc.NewLock())
+func (c *client) GetLocks(mip string, mport uint32) ([]*pb.LockedResource, error) {
+	//pbmsg, err := c.SendRPC(hrpc.NewLock())
+	pbmsg, err := c.SendRPC2(hrpc.NewLock(), mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +90,9 @@ func (c *client) GetLocks() ([]*pb.LockedResource, error) {
 }
 
 // ClusterStatus Get the status of the cluster
-func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
-	pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
+func (c *client) ClusterStatus(mip string, mport uint32) (*pb.ClusterStatus, error) {
+	//pbmsg, err := c.SendRPC(hrpc.NewClusterStatus())
+	pbmsg, err := c.SendRPC2(hrpc.NewClusterStatus(), mip, mport)
 	if err != nil {
 		return nil, err
 	}
@@ -104,8 +106,9 @@ func (c *client) ClusterStatus() (*pb.ClusterStatus, error) {
 }
 
 // GetProcedures Get the procedures of the cluster
-func (c *client) GetProcedures() ([]*pb.Procedure, error) {
-	pbmsg, err := c.SendRPC(hrpc.NewProcedures())
+func (c *client) GetProcedures(mip string, mport uint32) ([]*pb.Procedure, error) {
+	//pbmsg, err := c.SendRPC(hrpc.NewProcedures())
+	pbmsg, err := c.SendRPC2(hrpc.NewProcedures(), mip, mport)
 	if err != nil {
 		return nil, err
 	}
