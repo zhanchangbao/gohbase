@@ -1019,17 +1019,17 @@ type ClusterStatus struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	HbaseVersion        *HBaseVersionFileContent `protobuf:"bytes,1,opt,name=hbase_version,json=hbaseVersion" json:"hbase_version,omitempty"`
-	LiveServers         []*LiveServerInfo        `protobuf:"bytes,2,rep,name=live_servers,json=liveServers" json:"live_servers,omitempty"`
-	DeadServers         []*ServerName            `protobuf:"bytes,3,rep,name=dead_servers,json=deadServers" json:"dead_servers,omitempty"`
-	RegionsInTransition []*RegionInTransition    `protobuf:"bytes,4,rep,name=regions_in_transition,json=regionsInTransition" json:"regions_in_transition,omitempty"`
-	ClusterId           *ClusterId               `protobuf:"bytes,5,opt,name=cluster_id,json=clusterId" json:"cluster_id,omitempty"`
-	MasterCoprocessors  []*Coprocessor           `protobuf:"bytes,6,rep,name=master_coprocessors,json=masterCoprocessors" json:"master_coprocessors,omitempty"`
-	Master              *ServerName              `protobuf:"bytes,7,opt,name=master" json:"master,omitempty"`
-	BackupMasters       []*ServerName            `protobuf:"bytes,8,rep,name=backup_masters,json=backupMasters" json:"backup_masters,omitempty"`
+	HbaseVersion        *HBaseVersionFileContent `protobuf:"bytes,1,opt,name=hbase_version,json=hbaseVersion" json:"hbase_version"`
+	LiveServers         []*LiveServerInfo        `protobuf:"bytes,2,rep,name=live_servers,json=liveServers" json:"live_servers"`
+	DeadServers         []*ServerName            `protobuf:"bytes,3,rep,name=dead_servers,json=deadServers" json:"dead_servers"`
+	RegionsInTransition []*RegionInTransition    `protobuf:"bytes,4,rep,name=regions_in_transition,json=regionsInTransition" json:"regions_in_transition"`
+	ClusterId           *ClusterId               `protobuf:"bytes,5,opt,name=cluster_id,json=clusterId" json:"cluster_id"`
+	MasterCoprocessors  []*Coprocessor           `protobuf:"bytes,6,rep,name=master_coprocessors,json=masterCoprocessors" json:"master_coprocessors"`
+	Master              *ServerName              `protobuf:"bytes,7,opt,name=master" json:"master"`
+	BackupMasters       []*ServerName            `protobuf:"bytes,8,rep,name=backup_masters,json=backupMasters" json:"backup_masters"`
 	BalancerOn          *bool                    `protobuf:"varint,9,opt,name=balancer_on,json=balancerOn" json:"balancer_on,omitempty"`
 	MasterInfoPort      *int32                   `protobuf:"varint,10,opt,name=master_info_port,json=masterInfoPort,def=-1" json:"master_info_port,omitempty"`
-	ServersName         []*ServerName            `protobuf:"bytes,11,rep,name=servers_name,json=serversName" json:"servers_name,omitempty"`
+	ServersName         []*ServerName            `protobuf:"bytes,11,rep,name=servers_name,json=serversName" json:"servers_name"`
 }
 
 // Default values for ClusterStatus fields.
